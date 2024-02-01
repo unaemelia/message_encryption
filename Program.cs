@@ -1,71 +1,86 @@
 using System;
 using System.IO;
-using System.Security.Cryptography;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
 
-// Memory storage for encrypted message
+// Memory storage for encrypted message and shift value
 byte[] encryptedMessage = null;
+int shiftValue = 0;
 
-app.MapGet("/", () => "Hello World!");
+app.MapGet("/", () => "Hello! \n To encrypt a message: /encrypt/{message}/{shift} \n To decrypt that message: /decrypt");
 
-app.MapGet("/encrypt/{message}", (string message) =>
+app.MapGet("/encrypt/{message}/{shift}", (string message, int shift) =>
 {
-    // Encrypt message using AES
-    encryptedMessage = EncryptStringToBytes(message, GetAesKey(), GetAesIV());
+    // Encrypt message using Caesar Cipher
+    encryptedMessage = EncryptStringToBytes(message, shift);
+    shiftValue = shift;
 
     return $"Encrypted message: {Convert.ToBase64String(encryptedMessage)}";
 });
 
-// Todo add decrypt method here
-app.MapGet("/decrypt", () => "Add dencrypt function!");
+app.MapGet("/decrypt", () =>
+{
+    // Decrypt the encrypted message using the stored shift value
+    string decryptedMessage = DecryptStringFromBytes(encryptedMessage, shiftValue);
+
+    return $"Decrypted message: {decryptedMessage}";
+});
 
 app.Run();
 
-// Generate random AES key
-byte[] GetAesKey()
+// Encrypt a string using Caesar Cipher
+byte[] EncryptStringToBytes(string text, int shift)
 {
-    using (Aes aesAlg = Aes.Create())
-    {
-        aesAlg.GenerateKey();
-        return aesAlg.Key;
-    }
-}
+    // Convert string to char array
+    char[] chars = text.ToCharArray();
 
-// Generate random AES IV
-byte[] GetAesIV()
-{
-    using (Aes aesAlg = Aes.Create())
+    // Shift each character by the specified amount
+    for (int i = 0; i < chars.Length; i++)
     {
-        aesAlg.GenerateIV();
-        return aesAlg.IV;
-    }
-}
+        char c = chars[i];
 
-// Encrypt a string using AES
-byte[] EncryptStringToBytes(string text, byte[] Key, byte[] IV)
-{
-    using (Aes aesAlg = Aes.Create())
-    {
-        aesAlg.Key = Key;
-        aesAlg.IV = IV;
-
-        using (MemoryStream msEncrypt = new MemoryStream())
+        // Encrypt the alphabetical characters
+        if (char.IsLetter(c))
         {
-            using (CryptoStream csEncrypt = new CryptoStream(msEncrypt, aesAlg.CreateEncryptor(), CryptoStreamMode.Write))
-            {
-                using (StreamWriter swEncrypt = new StreamWriter(csEncrypt))
-                {
-                    swEncrypt.Write(text);
-                }
-            }
-            return msEncrypt.ToArray();
+            char offset = char.IsUpper(c) ? 'A' : 'a';
+            chars[i] = (char)((c + shift - offset) % 26 + offset);
         }
     }
+
+    // Convert char array back to string
+    string encryptedText = new string(chars);
+
+    // Convert string to bytes
+    return Encoding.UTF8.GetBytes(encryptedText);
 }
 
-// Todo: Decrypt a string using AES
+// Decrypt a string using Caesar Cipher
+string DecryptStringFromBytes(byte[] encryptedText, int shift)
+{
+    // Convert bytes to string
+    string encryptedString = Encoding.UTF8.GetString(encryptedText);
+
+    // Convert string to char array
+    char[] chars = encryptedString.ToCharArray();
+
+    // Shift each character back by the specified amount
+    for (int i = 0; i < chars.Length; i++)
+    {
+        char c = chars[i];
+
+        // Decrypt the alphabetical characters
+        if (char.IsLetter(c))
+        {
+            char offset = char.IsUpper(c) ? 'A' : 'a';
+            chars[i] = (char)((c - shift - offset + 26) % 26 + offset);
+        }
+    }
+
+    // Convert char array back to string
+    return new string(chars);
+}
